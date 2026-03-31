@@ -1,0 +1,388 @@
+dataset: tb_vendas_raw
+
+description: >
+  Camada semântica de vendas na granularidade PEDIDO/SKU.
+  Criada para consumo por IA.
+  Contém dimensões limpas, métricas bases e métricas calculadas,
+  garantindo consistência em qualquer nível de granularidade (pedido, sku, cliente, data).
+
+grain: item_venda
+
+primary_key:
+  - id_pedido
+  - id_sku
+
+# DIMENSÕES
+
+dimensions:
+
+  - name: dt_atualizacao
+    type: date
+    description: Data da atualização da base (input de dados)
+
+  - name: id_pedido
+    type: string
+    description: Identificador único do pedido (venda)
+
+  - name: id_cliente
+    type: string
+    description: Identificador anonimizado do cliente (hash do CPF)
+
+  - name: id_sku
+    type: string
+    description: Identificador único do item vendido
+
+  - name: id_sku_pai
+    type: string
+    description: Agrupador de variações e kits de produto
+
+  - name: marca
+    type: string
+    description: Chave da Unidade de Negócio
+
+  - name: submarca
+    type: string
+    description: Linha ou família do produto
+
+  - name: categoria
+    type: string
+    description: Categoria principal do produto
+
+  - name: cod_ciclo
+    type: string
+    description: Ciclo comercial vigente no momento da venda
+
+  - name: tipo_ciclo
+    type: string
+    description: Descrição textual do ciclo de marketing
+
+  - name: data_venda
+    type: date
+    description: Data de fechamento do pedido (referência principal para análises temporais)
+
+  - name: hora_venda
+    type: time
+    description: Hora exata da captura da venda
+
+  - name: faixa_horaria
+    type: string
+    description: Classificação do horário da venda (madrugada, manhã, tarde, noite)
+
+  - name: ano_venda
+    type: integer
+    description: Ano da venda
+
+  - name: numero_mes
+    type: integer
+    description: Mês da venda no formato numérico
+
+  - name: ano_mes
+    type: string
+    description: Formato YYYY-MM
+
+  - name: nome_mes
+    type: string
+    description: Nome do mês da venda
+
+  - name: dia_semana_numero
+    type: integer
+    description: Dia da semana da venda em formato numérico
+
+  - name: ano_semana_formatado
+    type: string
+    description: Formato YYYY-Www
+
+  - name: ano_semana
+    type: integer
+    description: Ano ISO da semana
+
+  - name: numero_semana
+    type: integer
+    description: Semana ISO do ano
+
+  - name: dia_numero_semana
+    type: integer
+    description: Dia da semana numérico da venda
+
+  - name: nome_dia_semana
+    type: string
+    description: Nome do dia da semana da venda
+
+  - name: id_origem_trafego
+    type: string
+    description: ID do agrupador primário de origem de tráfego (UTM Source)
+
+  - name: origem_trafego
+    type: string
+    description: Agrupador primário de origem de tráfego (UTM Source)
+
+  - name: midia
+    type: string
+    description: Canal específico de mídia digital (UTM Medium)
+
+  - name: uf
+    type: string
+    description: Unidade Federativa de destino do pedido
+
+  - name: cidade
+    type: string
+    description: Nome do município de entrega
+
+  - name: regiao
+    type: string
+    description: Região geográfica para fins de logística
+
+  - name: canal_venda
+    type: string
+    description: Canal de venda atribuído pela regra de última interação.
+
+  - name: cupom
+    type: string
+    description: Voucher ou cupom promocional aplicado à transação.
+
+- name: id_status_venda
+    type: string
+    description: ID do status atualizado do pedido
+
+  - name: status_venda
+    type: string
+    description: Status atualizado do pedido
+
+# FLAGS
+
+flags:
+
+  - name: flag_faturado
+    type: boolean
+    description: Indica se o item foi faturado
+
+  - name: flag_aprovado
+    type: boolean
+    description: Indica se o pagamento foi aprovado
+
+  - name: flag_atendido_cd
+    type: boolean
+    description: Indica atendimento via centro de distribuição
+
+  - name: flag_retirada
+    type: boolean
+    description: Indica retirada em loja (click e retire)
+
+  - name: flag_combo
+    type: boolean
+    description: Indica se o item pertence a um combo
+
+# MÉTRICAS BASE
+
+measures:
+
+  - name: receita_liquida
+    type: float
+    aggregation: sum
+    description: Receita líquida após a emissão da nota fiscal
+
+  - name: receita_bruta
+    type: float
+    aggregation: sum
+    description: Valor pago pelo cliente antes de ajustes finais
+
+  - name: valor_desconto
+    type: float
+    aggregation: sum
+    description: Montante total de abatimentos aplicados ao item
+
+  - name: quantidade_item
+    type: integer
+    aggregation: sum
+    description: Contagem de SKU
+
+# MÉTRICAS CALCULADAS
+
+derived_metrics:
+
+  - name: ticket_medio_pedido
+    description: Receita média por pedido
+    formula: sum(receita_liquida) / count_distinct(id_pedido)
+
+  - name: ticket_medio_item
+    description: Receita média por item
+    formula: sum(receita_liquida) / sum(quantidade_item)
+
+  - name: itens_por_pedido
+    formula: sum(quantidade_item) / count_distinct(id_pedido)
+
+  - name: perc_desconto
+    formula: sum(valor_desconto) / sum(receita_bruta)
+
+  - name: taxa_aprovacao
+    description: Percentual de pedidos aprovados
+    formula: count_distinct(id_pedido where flag_aprovado = true) / count_distinct(id_pedido)
+
+  - name: taxa_faturamento
+    formula: count_distinct(id_pedido where flag_faturado = true) / count_distinct(id_pedido)
+
+  - name: perc_cd
+    formula: sum(flag_atendido_cd) / sum(quantidade_item)
+
+  - name: perc_retirada
+    formula: sum(flag_retirada) / sum(quantidade_item)
+
+  - name: receita_combo
+    formula: sum(receita_liquida where flag_combo = true)
+
+  - name: receita_individual
+    formula: sum(receita_liquida where flag_combo = false)
+
+  - name: share_receita
+    formula: sum(receita_liquida) / sum(receita_liquida) over all
+
+# TIME INTELLIGENCE
+
+time_intelligence:
+
+  base_dimension: data_venda
+
+  metrics:
+
+    - name: receita_ly
+      formula: receita_liquida shifted by 1 year
+
+    - name: pedidos_ly
+      formula: pedidos shifted by 1 year
+
+    - name: crescimento_receita
+      formula: (receita_liquida - receita_ly) / receita_ly
+
+    - name: crescimento_pedidos
+      formula: (pedidos - pedidos_ly) / pedidos_ly
+
+# SINÔNIMOS (IA)
+
+synonyms:
+
+  dt_atualizacao: [últimos dados, dados mais recentes, dados mais atualizados]
+  receita_liquida: [faturamento, receita, vendas, valor vendido]
+  receita_bruta: [valor pago, valor total]
+  pedidos: [quantidade de pedidos, numero de compras]
+  clientes: [consumidores, compradores]
+  ticket_medio_pedido: [ticket médio, valor médio por pedido]
+  categoria: [tipo de produto]
+  submarca: [linha, família]
+  marca: [unidade de negócio, marca principal]
+
+
+# REGRAS DE NEGÓCIO
+
+
+business_rules:
+
+  - Receita considerada sempre baseada em receita_liquida
+  - Pedido é identificado por id_pedido
+  - Métricas devem respeitar agregações corretas (evitar média de média)
+  - Flags estão no nível item e devem ser agregadas corretamente
+
+
+# COMPORTAMENTO DA IA
+
+
+ai_guidelines:
+
+  general_behavior:
+    - Responder apenas com base nos dados disponíveis neste dataset
+    - Não criar colunas, regras ou relações inexistentes
+
+  when_not_supported:
+    - Se a pergunta não puder ser respondida com os dados disponíveis, responder: "não sei"
+    - Explicar brevemente o motivo da limitação
+
+  calculation_rules:
+    - Utilizar sempre as métricas definidas na camada semântica
+    - Não recalcular métricas derivadas manualmente
+
+  ambiguity_handling:
+    - Utilizar os sinônimos definidos para interpretar perguntas
+    - Solicitar esclarecimento em caso de ambiguidade
+
+  forbidden_behaviors:
+    - Não estimar valores
+    - Não usar conhecimento externo
+    - Não assumir regras de negócio não descritas
+
+
+# PLAYBOOKS
+
+
+analysis_playbooks:
+
+  queda_receita:
+
+    description: >
+      Identificar possíveis causas para queda de receita comparando períodos.
+
+    steps:
+
+      - step: comparar_periodos
+        description: Comparar receita atual vs período anterior (ex: semana anterior ou ano anterior)
+        metric: receita_liquida
+
+      - step: analisar_volume
+        description: Verificar se houve queda no número de pedidos
+        metric: pedidos
+
+      - step: analisar_ticket
+        description: Verificar se houve queda no ticket médio
+        metric: ticket_medio_pedido
+
+      - step: analisar_mix_produto
+        description: Identificar mudança na participação de categorias
+        dimension: categoria
+        metric: receita_liquida
+
+      - step: analisar_canal
+        description: Verificar mudança de performance por canal de venda
+        dimension: canal_venda
+        metric: receita_liquida
+
+      - step: analisar_regiao
+        description: Identificar regiões com maior impacto na queda
+        dimension: regiao
+        metric: receita_liquida
+
+    output_format:
+
+      - resumo_geral
+      - principais_causas
+      - evidencias_dados
+
+# COBERTURA ANALÍTICA
+
+
+coverage:
+
+  supported_topics:
+    - vendas
+    - pedidos
+    - clientes
+    - produtos
+    - tempo
+    - geografia
+    - comportamento de compra
+
+  unsupported_topics:
+    - marketing_roi
+    - custo
+    - margem
+    - lucro
+    - estoque
+    - ruptura
+    - logística_avancada
+    - cpf
+
+
+# NOTAS
+
+
+notes:
+
+  - Granularidade no nível de pedido e item (SKU)
+  - Para análises por pedido, recomenda-se agregação por id_pedido
